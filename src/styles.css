@@ -5072,3 +5072,33 @@ h1 span {
   border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 0.8rem; font-weight: 600;
 }
 .admin-close-btn:hover { background: #fffbeb; }
+
+/* ==============================
+   WORKER PROFILE — REAL DATA
+   ============================== */
+.profile-avatar-initials {
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  color: #fff;
+  font-weight: 800;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.avail-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 14px;
+  border-radius: 99px;
+  border: none;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.avail-toggle-btn.available { background: #dcfce7; color: #15803d; }
+.avail-toggle-btn.busy      { background: #fee2e2; color: #b91c1c; }
+.avail-toggle-btn:disabled  { opacity: .6; cursor: default; }
