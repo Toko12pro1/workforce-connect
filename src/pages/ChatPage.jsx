@@ -313,11 +313,10 @@ export default function ChatPage() {
     setStarting(true);
     setThreadError("");
     getOrCreateDirectThread(user.id, withParam).then(tid => {
-      if (tid) {
-        setJobId(tid);
-      } else {
-        setThreadError("Impossible d'ouvrir la conversation. Vérifiez votre connexion et réessayez.");
-      }
+      if (tid) setJobId(tid);
+      setStarting(false);
+    }).catch(err => {
+      setThreadError(`Erreur: ${err.message} (user:${user.id?.slice(0,8)} with:${withParam?.slice(0,8)})`);
       setStarting(false);
     });
   }, [withParam, user?.id]);

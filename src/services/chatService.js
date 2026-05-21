@@ -112,7 +112,7 @@ export async function getOrCreateDirectThread(myId, theirId) {
 
   if (error) {
     console.error("getOrCreateDirectThread:", error.message, error.code, error.hint, error.details);
-    return null;
+    throw new Error(error.message || "Insert failed");
   }
   return newJob.id;
 }
