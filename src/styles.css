@@ -5117,3 +5117,26 @@ h1 span {
 .thread-row-body strong { display: block; font-size: 0.95rem; color: #1e293b; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .thread-row-body span  { display: block; font-size: 0.78rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 .thread-row small { font-size: 0.72rem; color: #94a3b8; white-space: nowrap; }
+
+/* ==============================
+   AVATAR UPLOAD BUTTON
+   ============================== */
+.avatar-upload-btn {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.18);
+  transition: background .15s, opacity .15s;
+  z-index: 2;
+}
+.avatar-upload-btn:hover { background: #1d4ed8; }

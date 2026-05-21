@@ -1,192 +1,104 @@
 import React, { useMemo, useState } from "react";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Bell,
-  Camera,
-  FileVideo,
-  Hammer,
-  Info,
-  Paintbrush,
-  Pencil,
-  Search,
-  UploadCloud,
-  Wrench,
-  X
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Bell, Info, Pencil, Search, X } from "lucide-react";
+import { CAMEROON_TRADES } from "../components/TradeChipGrid.jsx";
 
-const services = [
-  { name: "Plumber", icon: Hammer },
-  { name: "Electrician", icon: Wrench },
-  { name: "Painter", icon: Paintbrush },
-  { name: "Carpenter", icon: Pencil },
-  { name: "Tailor", icon: Pencil },
-  { name: "Mechanic", icon: Wrench },
-  { name: "Barber", icon: Pencil },
-  { name: "Cleaner", icon: UploadCloud }
-];
+const SERVICES = CAMEROON_TRADES;
 
 export default function JobDetailsPage() {
   const [serviceSearch, setServiceSearch] = useState("");
-  const [selectedService, setSelectedService] = useState("Plumber");
+  const [selectedService, setSelectedService] = useState("");
   const [description, setDescription] = useState("");
-  const [mediaFiles, setMediaFiles] = useState([]);
+  const [error, setError] = useState("");
 
-  const filteredServices = useMemo(() => {
-    const search = serviceSearch.trim().toLowerCase();
-    if (!search) {
-      return services;
-    }
-
-    return services.filter((service) => service.name.toLowerCase().includes(search));
+  const filtered = useMemo(() => {
+    const q = serviceSearch.trim().toLowerCase();
+    return q ? SERVICES.filter(s => s.toLowerCase().includes(q)) : SERVICES;
   }, [serviceSearch]);
-  const canUseCustomService =
-    serviceSearch.trim() &&
-    !services.some((service) => service.name.toLowerCase() === serviceSearch.trim().toLowerCase());
 
-  function handleMediaChange(event, type) {
-    const nextFiles = Array.from(event.target.files || []).map((file) => ({
-      id: `${type}-${file.name}-${file.lastModified}`,
-      name: file.name,
-      type
-    }));
+  const canCustom = serviceSearch.trim() &&
+    !SERVICES.some(s => s.toLowerCase() === serviceSearch.trim().toLowerCase());
 
-    setMediaFiles((currentFiles) => [...currentFiles, ...nextFiles]);
-    event.target.value = "";
-  }
-
-  function removeMedia(fileId) {
-    setMediaFiles((currentFiles) => currentFiles.filter((file) => file.id !== fileId));
+  function handleNext() {
+    if (!selectedService) { setError("Sélectionnez un service."); return; }
+    if (!description.trim()) { setError("Décrivez le travail demandé."); return; }
+    sessionStorage.setItem("job_draft", JSON.stringify({ serviceType: selectedService, description: description.trim() }));
+    window.location.href = "/post-job-location";
   }
 
   return (
     <main className="app-screen job-details-screen">
       <header className="job-flow-header job-details-header">
-        <a href="/browse" aria-label="Back to browse">
-          <ArrowLeft size={28} />
-        </a>
-        <a href="/browse" className="job-flow-brand">
-          Workforce Connect
-        </a>
-        <a href="/worker-dashboard" aria-label="Notifications">
-          <Bell size={22} />
-        </a>
+        <a href="/browse" aria-label="Retour"><ArrowLeft size={28} /></a>
+        <span className="job-flow-brand">Workforce Connect</span>
+        <a href="/worker-dashboard" aria-label="Notifications"><Bell size={22} /></a>
       </header>
 
       <section className="job-details-content">
         <div className="job-step-row details-step">
-          <strong>STEP 1 OF 3</strong>
-          <span>Details</span>
-          <i>
-            <b></b>
-          </i>
+          <strong>ÉTAPE 1 SUR 3</strong>
+          <span>Détails du job</span>
         </div>
 
         <section className="details-intro">
-          <h1>Post a New Job</h1>
-          <p>Describe the task so we can match you with the right pro.</p>
-          <h2>What service do you need?</h2>
+          <h1>Publier un job</h1>
+          <p>Décrivez votre besoin pour trouver le bon prestataire.</p>
+          <h2>Quel service recherchez-vous ?</h2>
         </section>
 
         <label className="service-search-field">
           <Search size={24} />
           <input
             type="search"
-            placeholder="Search your service field..."
+            placeholder="Rechercher un service…"
             value={serviceSearch}
-            onChange={(event) => setServiceSearch(event.target.value)}
+            onChange={e => setServiceSearch(e.target.value)}
           />
         </label>
 
         <div className="service-choice-grid">
-          {filteredServices.map(({ name, icon: Icon }) => (
+          {filtered.map(name => (
             <button
               className={selectedService === name ? "active" : ""}
               key={name}
               type="button"
               onClick={() => setSelectedService(name)}
             >
-              <Icon size={32} />
+              <span style={{ fontSize: "1.4rem" }}>🔧</span>
               <span>{name}</span>
             </button>
           ))}
-          {canUseCustomService && (
+          {canCustom && (
             <button
-              className={selectedService === serviceSearch.trim() ? "active custom-service-button" : "custom-service-button"}
+              className={selectedService === serviceSearch.trim() ? "active" : ""}
               type="button"
               onClick={() => setSelectedService(serviceSearch.trim())}
             >
-              <Pencil size={32} />
-              <span>Use "{serviceSearch.trim()}"</span>
+              <Pencil size={28} />
+              <span>Utiliser "{serviceSearch.trim()}"</span>
             </button>
-          )}
-          {!filteredServices.length && !canUseCustomService && (
-            <p className="empty-service-result">No service found.</p>
           )}
         </div>
 
         <label className="job-description-field">
-          <span>Explain the job</span>
+          <span>Décrivez le travail</span>
           <textarea
-            maxLength="500"
+            maxLength={500}
             value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="e.g. My kitchen sink is leaking from the main pipe. I need someone to come look at it this afternoon..."
-          ></textarea>
+            onChange={e => setDescription(e.target.value)}
+            placeholder="ex: Mon évier de cuisine fuit au niveau du siphon. J'ai besoin d'une intervention urgente…"
+            rows={4}
+          />
           <b>{description.length} / 500</b>
         </label>
 
-        <p className="specific-tip">
-          <Info size={25} />
-          Be specific about the problem to get better quotes.
-        </p>
-
-        <section className="details-photo-section">
-          <h2>Add photos or videos</h2>
-          <p>Upload clear photos or a short video so providers can understand the job.</p>
-          <div>
-            <label className="details-add-photo">
-              <Camera size={45} />
-              Add photo
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(event) => handleMediaChange(event, "Photo")}
-              />
-            </label>
-            <label className="details-add-photo video-upload">
-              <FileVideo size={45} />
-              Add video
-              <input
-                type="file"
-                accept="video/*"
-                multiple
-                onChange={(event) => handleMediaChange(event, "Video")}
-              />
-            </label>
-            {mediaFiles.map((file) => (
-              <article key={file.id}>
-                <span>{file.type}</span>
-                <strong>{file.name}</strong>
-                <button
-                  aria-label={`Remove ${file.name}`}
-                  type="button"
-                  onClick={() => removeMedia(file.id)}
-                >
-                  <X size={18} />
-                </button>
-              </article>
-            ))}
-          </div>
-        </section>
+        <p className="specific-tip"><Info size={22} /> Soyez précis pour obtenir de meilleures réponses.</p>
+        {error && <p className="form-error" role="alert">{error}</p>}
       </section>
 
       <footer className="details-next-footer">
-        <a href="/post-job-location">
-          Next: Schedule & Budget
-          <ArrowRight size={29} />
-        </a>
+        <button className="wide-blue-button" type="button" onClick={handleNext}>
+          Suivant : Lieu & Budget <ArrowRight size={26} />
+        </button>
       </footer>
     </main>
   );

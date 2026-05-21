@@ -1,120 +1,125 @@
-import React from "react";
-import {
-  ArrowLeft,
-  Bell,
-  BriefcaseBusiness,
-  Camera,
-  Home,
-  MapPin,
-  Send,
-  ShieldCheck,
-  UserRound,
-  X
-} from "lucide-react";
-
-function BottomNav() {
-  return (
-    <nav className="app-bottom-nav" aria-label="App navigation">
-      <a href="/browse">
-        <Home size={20} />
-        Home
-      </a>
-      <a className="active" href="/post-job-details">
-        <BriefcaseBusiness size={20} />
-        My Jobs
-      </a>
-      <a href="/worker-profile">
-        <UserRound size={20} />
-        Profile
-      </a>
-    </nav>
-  );
-}
+import React, { useEffect, useState } from "react";
+import { ArrowLeft, Camera, Send, ShieldCheck, X } from "lucide-react";
+import { createJob } from "../services/jobsService.js";
+import { uploadJobMedia } from "../services/storageService.js";
+import { useAuth } from "../hooks/useAuth.js";
 
 export default function JobVisualsPage() {
+  const { user } = useAuth();
+  const [draft, setDraft] = useState({});
+  const [mediaFiles, setMediaFiles] = useState([]);
+  const [previews, setPreviews] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem("job_draft");
+    if (saved) setDraft(JSON.parse(saved));
+  }, []);
+
+  function handleFiles(e) {
+    const files = Array.from(e.target.files || []);
+    setMediaFiles(prev => [...prev, ...files]);
+    files.forEach(f => {
+      const reader = new FileReader();
+      reader.onload = ev => setPreviews(prev => [...prev, { name: f.name, src: ev.target.result }]);
+      reader.readAsDataURL(f);
+    });
+    e.target.value = "";
+  }
+
+  function removeFile(idx) {
+    setMediaFiles(prev => prev.filter((_, i) => i !== idx));
+    setPreviews(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  async function handlePost() {
+    if (!user?.id) { window.location.href = "/login"; return; }
+    if (!draft.serviceType) { setError("Reprenez depuis l'étape 1."); return; }
+    setSubmitting(true);
+    setError("");
+    try {
+      const mediaUrls = [];
+      for (const f of mediaFiles) {
+        const url = await uploadJobMedia(f, user.id);
+        mediaUrls.push(url);
+      }
+      await createJob({
+        clientId: user.id,
+        serviceType: draft.serviceType,
+        description: draft.description || "",
+        location: draft.location || "",
+        budgetType: draft.budgetType || "negotiable",
+        budgetAmount: draft.budgetAmount || 0,
+        mediaUrls
+      });
+      sessionStorage.removeItem("job_draft");
+      window.location.href = "/job-posted";
+    } catch (err) {
+      setError("Impossible de publier le job. Vérifiez votre connexion.");
+      setSubmitting(false);
+    }
+  }
+
   return (
     <main className="app-screen job-visuals-screen">
       <header className="job-flow-header visual-flow-header">
-        <a href="/post-job-location" aria-label="Back to location">
-          <ArrowLeft size={28} />
-        </a>
-        <a href="/browse" className="job-flow-brand">
-          Workforce Connect
-        </a>
-        <a href="/worker-dashboard" aria-label="Notifications">
-          <Bell size={22} />
-        </a>
+        <a href="/post-job-location" aria-label="Retour"><ArrowLeft size={28} /></a>
+        <span className="job-flow-brand">Workforce Connect</span>
       </header>
 
       <section className="visuals-content">
         <div className="job-step-row visuals-step">
-          <strong>Step 3 of 3</strong>
-          <span>Final Step: Visuals</span>
-          <i>
-            <b></b>
-          </i>
+          <strong>ÉTAPE 3 SUR 3</strong>
+          <span>Photos (facultatif)</span>
         </div>
 
-        <div className="visuals-title">
-          <h1>Show the Work</h1>
-          <p>
-            Adding clear photos of the job site or items helps providers share
-            accurate quotes.
-          </p>
-        </div>
+        {/* Summary of job being posted */}
+        {draft.serviceType && (
+          <aside style={{ background: "#f1f5f9", borderRadius: 12, padding: "12px 16px", margin: "0 0 16px", fontSize: "0.875rem", color: "#475569" }}>
+            <strong style={{ color: "#1e293b" }}>{draft.serviceType}</strong>
+            {draft.location && <> · {draft.location}</>}
+            {draft.budgetAmount > 0 && <> · {draft.budgetAmount.toLocaleString("fr-CM")} XAF</>}
+            {draft.description && <p style={{ marginTop: 4, color: "#64748b" }}>{draft.description.slice(0, 100)}{draft.description.length > 100 ? "…" : ""}</p>}
+          </aside>
+        )}
 
-        <button className="visual-upload-box" type="button">
-          <Camera size={58} />
-          <span>Add Photos or Video</span>
-        </button>
+        <label className="visual-upload-box" style={{ cursor: "pointer", display: "block" }}>
+          <Camera size={52} />
+          <span>Ajouter des photos</span>
+          <input type="file" accept="image/*,video/*" multiple onChange={handleFiles} style={{ display: "none" }} />
+        </label>
 
-        <div className="visual-preview-grid">
-          <article>
-            <img
-              src="https://images.unsplash.com/photo-1519643381401-22c77e60520e?auto=format&fit=crop&w=560&q=82"
-              alt="Room flooring needing repair"
-            />
-            <button aria-label="Remove first upload" type="button">
-              <X size={20} />
-            </button>
-          </article>
-          <article>
-            <img
-              src="https://images.unsplash.com/photo-1516455207990-7a41ce80f7ee?auto=format&fit=crop&w=560&q=82"
-              alt="Wooden floor repair"
-            />
-            <button aria-label="Remove second upload" type="button">
-              <X size={20} />
-            </button>
-          </article>
-        </div>
+        {previews.length > 0 && (
+          <div className="visual-preview-grid">
+            {previews.map((p, i) => (
+              <article key={p.name + i}>
+                <img src={p.src} alt={p.name} />
+                <button aria-label="Supprimer" type="button" onClick={() => removeFile(i)}>
+                  <X size={18} />
+                </button>
+              </article>
+            ))}
+          </div>
+        )}
 
-        <aside className="local-reach-card">
-          <span>
-            <MapPin size={34} />
-          </span>
-          <p>
-            <strong>Local Reach</strong>
-            Your job will be visible to 142 verified providers in{" "}
-            <b>Morningside Heights.</b>
-          </p>
-        </aside>
-
-        <p className="verified-response-note">
-          <ShieldCheck size={28} />
-          Verified users get 30% more responses
+        <p className="verified-response-note" style={{ marginTop: 16 }}>
+          <ShieldCheck size={24} />
+          Les prestataires vérifiés répondent 30% plus vite.
         </p>
 
-        <a className="wide-blue-button post-now-button" href="/job-posted">
-          Post Job Now
-          <Send size={29} />
-        </a>
-        <a className="save-draft-button" href="/browse">
-          Save as Draft
-        </a>
-      </section>
+        {error && <p className="form-error" role="alert">{error}</p>}
 
-      <BottomNav />
+        <button
+          className="wide-blue-button post-now-button"
+          type="button"
+          onClick={handlePost}
+          disabled={submitting}
+        >
+          {submitting ? "Publication…" : <><Send size={24} /> Publier le job maintenant</>}
+        </button>
+        <a className="save-draft-button" href="/browse">Annuler</a>
+      </section>
     </main>
   );
 }
