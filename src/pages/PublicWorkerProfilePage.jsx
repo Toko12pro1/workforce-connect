@@ -59,7 +59,7 @@ export default function PublicWorkerProfilePage({ id }) {
           <a href={`tel:${profile.phone || ""}`} className="profile-action-btn">
             <Phone size={18} /> Appeler
           </a>
-          <a href="/chat" className="profile-action-btn">
+          <a href={`/chat?with=${id}&name=${encodeURIComponent(profile.name)}&avatar=${encodeURIComponent(profile.avatarUrl || "")}`} className="profile-action-btn">
             Message
           </a>
         </div>

@@ -5102,3 +5102,18 @@ h1 span {
 .avail-toggle-btn.available { background: #dcfce7; color: #15803d; }
 .avail-toggle-btn.busy      { background: #fee2e2; color: #b91c1c; }
 .avail-toggle-btn:disabled  { opacity: .6; cursor: default; }
+
+/* ==============================
+   CHAT — THREAD LIST & REAL DATA
+   ============================== */
+.thread-list { display: flex; flex-direction: column; overflow-y: auto; flex: 1; }
+.thread-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; border: none; background: none; cursor: pointer;
+  border-bottom: 1px solid #f1f5f9; text-align: left; width: 100%;
+}
+.thread-row:hover { background: #f8fafc; }
+.thread-row-body { flex: 1; min-width: 0; }
+.thread-row-body strong { display: block; font-size: 0.95rem; color: #1e293b; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thread-row-body span  { display: block; font-size: 0.78rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.thread-row small { font-size: 0.72rem; color: #94a3b8; white-space: nowrap; }

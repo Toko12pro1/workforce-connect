@@ -117,9 +117,18 @@ export default function BrowseWorkersPage() {
                   </span>
                   {worker.distance && <b>{worker.distance}</b>}
                 </div>
-                <a className="wide-blue-button" href={`/profile/${worker.id}`}>
-                  Voir le profil
-                </a>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <a className="wide-blue-button" href={`/profile/${worker.id}`} style={{ flex: 1 }}>
+                    Voir le profil
+                  </a>
+                  <a
+                    className="wide-blue-button"
+                    href={`/chat?with=${worker.id}&name=${encodeURIComponent(worker.name)}&avatar=${encodeURIComponent(worker.avatarUrl || "")}`}
+                    style={{ flex: 1, background: "#f1f5f9", color: "#2563eb", border: "1.5px solid #2563eb" }}
+                  >
+                    Message
+                  </a>
+                </div>
               </div>
             </article>
           ))}
