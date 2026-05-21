@@ -36,6 +36,18 @@ export async function deleteComment(id) {
 export function subscribeToComments(postId, onComment) {
   return supabase
     .channel(`comments:${postId}`)
-    .on("postgres_changes", { event: "INSERT", schema: "public", table: "post_comments", filter: `post_id=eq.${postId}` }, (payload) => onComment(PostComment.fromRow(payload.new)))
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "post_comments", filter: `post_id=eq.${postId}` },
+      async (payload) => {
+        // payload.new lacks joined author — re-fetch the full row
+        const { data } = await supabase
+          .from("post_comments")
+          .select(`*, author:profiles(id, name, avatar_url)`)
+          .eq("id", payload.new.id)
+          .single();
+        if (data) onComment(PostComment.fromRow(data));
+      }
+    )
     .subscribe();
 }

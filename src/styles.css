@@ -5140,3 +5140,56 @@ h1 span {
   z-index: 2;
 }
 .avatar-upload-btn:hover { background: #1d4ed8; }
+
+/* ==============================
+   REALTIME — NAV BADGE & THREAD UNREAD
+   ============================== */
+.nav-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.nav-unread-dot {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 3px;
+  border-radius: 99px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  line-height: 1;
+  pointer-events: none;
+}
+.thread-row.unread { background: #f0f7ff; }
+.thread-row.unread strong { font-weight: 800; }
+.thread-preview-unread { font-weight: 600 !important; color: #1e293b !important; }
+.thread-row-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.thread-unread-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}

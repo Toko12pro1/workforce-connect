@@ -8,7 +8,14 @@ import {
   User
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth.js";
-import { getMessages, sendMessage, subscribeToMessages, getOrCreateDirectThread, getMyThreads } from "../services/chatService.js";
+import {
+  getMessages,
+  sendMessage,
+  subscribeToMessages,
+  getOrCreateDirectThread,
+  getMyThreads,
+  markThreadRead
+} from "../services/chatService.js";
 import { supabase } from "../supabaseClient.js";
 
 function Avatar({ url, name, size = 38 }) {
@@ -21,14 +28,117 @@ function Avatar({ url, name, size = 38 }) {
   );
 }
 
+function formatThreadTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now - d;
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "À l'instant";
+  if (diffMins < 60) return `${diffMins} min`;
+  if (diffMins < 1440) return d.toLocaleTimeString("fr-CM", { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleDateString("fr-CM");
+}
+
 // Conversations list view
 function ThreadList({ userId, onOpen }) {
   const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getMyThreads(userId).then(data => { setThreads(data); setLoading(false); });
+    if (!userId) return;
+
+    let msgChannel, jobChannel;
+
+    async function bootstrap() {
+      const data = await getMyThreads(userId);
+      setThreads(data);
+      setLoading(false);
+
+      const ids = data.map(t => t.id);
+      if (!ids.length) return;
+
+      // Subscribe to new messages in existing threads
+      msgChannel = supabase
+        .channel(`tl_msgs:${userId}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "messages", filter: `job_id=in.(${ids.join(",")})` },
+          (payload) => {
+            const msg = payload.new;
+            setThreads(prev => {
+              const updated = prev.map(t => {
+                if (t.id !== msg.job_id) return t;
+                return {
+                  ...t,
+                  lastMessage: { text: msg.text, sender_id: msg.sender_id, created_at: msg.created_at },
+                  unreadCount: msg.sender_id !== userId ? (t.unreadCount ?? 0) + 1 : (t.unreadCount ?? 0)
+                };
+              });
+              return [...updated].sort((a, b) =>
+                new Date(b.lastMessage?.created_at ?? b.created_at) -
+                new Date(a.lastMessage?.created_at ?? a.created_at)
+              );
+            });
+          }
+        )
+        .subscribe();
+    }
+
+    bootstrap();
+
+    // Subscribe to new threads started with this user (as worker)
+    jobChannel = supabase
+      .channel(`tl_jobs:${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "jobs", filter: `worker_id=eq.${userId}` },
+        async () => {
+          // New thread — re-load and re-subscribe
+          msgChannel?.unsubscribe();
+          const fresh = await getMyThreads(userId);
+          setThreads(fresh);
+          const ids = fresh.map(t => t.id);
+          if (!ids.length) return;
+          msgChannel = supabase
+            .channel(`tl_msgs:${userId}_r`)
+            .on(
+              "postgres_changes",
+              { event: "INSERT", schema: "public", table: "messages", filter: `job_id=in.(${ids.join(",")})` },
+              (payload) => {
+                const msg = payload.new;
+                setThreads(prev => {
+                  const updated = prev.map(t => {
+                    if (t.id !== msg.job_id) return t;
+                    return {
+                      ...t,
+                      lastMessage: { text: msg.text, sender_id: msg.sender_id, created_at: msg.created_at },
+                      unreadCount: msg.sender_id !== userId ? (t.unreadCount ?? 0) + 1 : (t.unreadCount ?? 0)
+                    };
+                  });
+                  return [...updated].sort((a, b) =>
+                    new Date(b.lastMessage?.created_at ?? b.created_at) -
+                    new Date(a.lastMessage?.created_at ?? a.created_at)
+                  );
+                });
+              }
+            )
+            .subscribe();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      msgChannel?.unsubscribe();
+      jobChannel?.unsubscribe();
+    };
   }, [userId]);
+
+  function handleOpen(t, other) {
+    // Reset unread count for this thread in local state
+    setThreads(prev => prev.map(th => th.id === t.id ? { ...th, unreadCount: 0 } : th));
+    onOpen(t.id, other);
+  }
 
   if (loading) return <div className="browse-loading">Chargement…</div>;
 
@@ -50,14 +160,22 @@ function ThreadList({ userId, onOpen }) {
       {threads.map(t => {
         const other = t.client?.id === userId ? t.worker : t.client;
         if (!other) return null;
+        const lastText = t.lastMessage?.text
+          ? (t.lastMessage.sender_id === userId ? `Vous: ${t.lastMessage.text}` : t.lastMessage.text)
+          : (t.service_type === "Message direct" ? "Démarrer la conversation" : t.service_type);
         return (
-          <button key={t.id} type="button" className="thread-row" onClick={() => onOpen(t.id, other)}>
+          <button key={t.id} type="button" className={`thread-row${t.unreadCount > 0 ? " unread" : ""}`} onClick={() => handleOpen(t, other)}>
             <Avatar url={other.avatar_url} name={other.name} />
             <div className="thread-row-body">
               <strong>{other.name}</strong>
-              <span>{t.service_type === "Message direct" ? "Message direct" : t.service_type}</span>
+              <span className={t.unreadCount > 0 ? "thread-preview-unread" : ""}>{lastText}</span>
             </div>
-            <small>{new Date(t.created_at).toLocaleDateString("fr-CM")}</small>
+            <div className="thread-row-meta">
+              <small>{formatThreadTime(t.lastMessage?.created_at ?? t.created_at)}</small>
+              {t.unreadCount > 0 && (
+                <span className="thread-unread-badge">{t.unreadCount > 9 ? "9+" : t.unreadCount}</span>
+              )}
+            </div>
           </button>
         );
       })}
@@ -74,10 +192,13 @@ function Conversation({ jobId, recipient, currentUser, onBack }) {
   const threadRef = useRef(null);
 
   useEffect(() => {
+    if (!jobId) return;
     getMessages(jobId).then(setMessages);
+    // Mark as read when opening conversation
+    markThreadRead(currentUser?.id);
+
     const channel = subscribeToMessages(jobId, (msg) => {
       setMessages(prev => {
-        // avoid duplicate from our own optimistic update
         if (prev.some(m => m.id === msg.id)) return prev;
         return [...prev, msg];
       });
@@ -86,7 +207,9 @@ function Conversation({ jobId, recipient, currentUser, onBack }) {
   }, [jobId]);
 
   useEffect(() => {
-    if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
+    if (threadRef.current) {
+      threadRef.current.scrollTop = threadRef.current.scrollHeight;
+    }
   }, [messages]);
 
   async function handleSubmit(e) {
@@ -95,11 +218,17 @@ function Conversation({ jobId, recipient, currentUser, onBack }) {
     if (!text || !currentUser || sending) return;
     setSending(true);
     setError("");
+    // Optimistic update
+    const optimistic = { id: `opt_${Date.now()}`, senderId: currentUser.id, text, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) };
+    setMessages(prev => [...prev, optimistic]);
+    setDraft("");
     try {
       const msg = await sendMessage(jobId, { senderId: currentUser.id, senderRole: "user", text });
-      setMessages(prev => [...prev, msg]);
-      setDraft("");
+      // Replace optimistic with real message
+      setMessages(prev => prev.map(m => m.id === optimistic.id ? msg : m));
     } catch {
+      setMessages(prev => prev.filter(m => m.id !== optimistic.id));
+      setDraft(text);
       setError("Impossible d'envoyer le message.");
     } finally {
       setSending(false);
@@ -117,7 +246,7 @@ function Conversation({ jobId, recipient, currentUser, onBack }) {
           <h1 style={{ fontSize: "1rem", fontWeight: 700, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {recipient?.name || "Conversation"}
           </h1>
-          <p style={{ fontSize: "0.75rem", color: "#6b7a99", margin: 0 }}>{recipient?.trade || ""}</p>
+          <p style={{ fontSize: "0.72rem", color: "#22c55e", margin: 0, fontWeight: 600 }}>En ligne</p>
         </div>
         {recipient?.phone && (
           <a href={`tel:${recipient.phone}`} aria-label="Appeler" style={{ color: "#2563eb", padding: 4 }}>
@@ -139,7 +268,7 @@ function Conversation({ jobId, recipient, currentUser, onBack }) {
               {!isMe && <Avatar url={recipient?.avatar_url} name={recipient?.name} size={32} />}
               <div className={`bubble ${isMe ? "client" : "worker"}`}>
                 <p>{message.text}</p>
-                <time>{message.time}{isMe && <CheckCheck size={13} />}</time>
+                <time>{message.time}{isMe && <CheckCheck size={13} style={{ marginLeft: 4, opacity: 0.7 }} />}</time>
               </div>
             </article>
           );
@@ -153,6 +282,7 @@ function Conversation({ jobId, recipient, currentUser, onBack }) {
           value={draft}
           onChange={e => setDraft(e.target.value)}
           disabled={sending}
+          autoFocus
         />
         <button type="submit" aria-label="Envoyer" disabled={sending || !draft.trim()}>
           <Send size={24} />
@@ -191,7 +321,7 @@ export default function ChatPage() {
     if (!jobIdParam || !user?.id) return;
     supabase
       .from("jobs")
-      .select("client_id, worker_id, service_type, client:profiles!jobs_client_id_fkey(id,name,avatar_url,trade,phone), worker:profiles!jobs_worker_id_fkey(id,name,avatar_url,trade,phone)")
+      .select("client_id, worker_id, client:profiles!jobs_client_id_fkey(id,name,avatar_url,trade,phone), worker:profiles!jobs_worker_id_fkey(id,name,avatar_url,trade,phone)")
       .eq("id", jobIdParam)
       .single()
       .then(({ data }) => {

@@ -41,16 +41,48 @@ export async function sendMessage(jobId, { senderId, senderRole, text, imageUrl 
 
 export function subscribeToMessages(jobId, onMessage) {
   return supabase
-    .channel(`messages:job_id=eq.${jobId}`)
-    .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `job_id=eq.${jobId}` },
-      (payload) => onMessage(toChatMessage(payload.new)))
+    .channel(`messages:${jobId}`)
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "messages", filter: `job_id=eq.${jobId}` },
+      (payload) => onMessage(toChatMessage(payload.new))
+    )
     .subscribe();
+}
+
+// Mark messages in a thread as read (uses localStorage timestamp per user)
+export function markThreadRead(userId) {
+  if (!userId) return;
+  localStorage.setItem(`chat_last_read_${userId}`, new Date().toISOString());
+}
+
+// Count messages received since user last opened chat
+export async function getUnreadMessageCount(userId) {
+  if (!userId) return 0;
+  try {
+    const lastRead = localStorage.getItem(`chat_last_read_${userId}`) || new Date(0).toISOString();
+    const { data: threads } = await supabase
+      .from("jobs")
+      .select("id")
+      .or(`client_id.eq.${userId},worker_id.eq.${userId}`)
+      .not("worker_id", "is", null);
+    if (!threads?.length) return 0;
+    const ids = threads.map(t => t.id);
+    const { count } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .in("job_id", ids)
+      .neq("sender_id", userId)
+      .gt("created_at", lastRead);
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 // Find an existing direct thread between two users, or create one
 export async function getOrCreateDirectThread(myId, theirId) {
   try {
-    // Look for an existing contact thread between these two users
     const { data: existing } = await supabase
       .from("jobs")
       .select("id")
@@ -61,7 +93,6 @@ export async function getOrCreateDirectThread(myId, theirId) {
 
     if (existing?.id) return existing.id;
 
-    // Create new thread
     const { data: newJob, error } = await supabase
       .from("jobs")
       .insert({
@@ -85,11 +116,11 @@ export async function getOrCreateDirectThread(myId, theirId) {
   }
 }
 
-// Get all chat threads for the current user (jobs where they are client or worker)
+// Get all chat threads for the user, with last message preview and unread count
 export async function getMyThreads(userId) {
   if (!userId) return [];
   try {
-    const { data, error } = await supabase
+    const { data: threads, error } = await supabase
       .from("jobs")
       .select(`
         id, service_type, status, created_at,
@@ -100,7 +131,47 @@ export async function getMyThreads(userId) {
       .not("worker_id", "is", null)
       .order("created_at", { ascending: false });
     if (error) throw error;
-    return data ?? [];
+    if (!threads?.length) return [];
+
+    const ids = threads.map(t => t.id);
+
+    // Last message per thread
+    const { data: msgs } = await supabase
+      .from("messages")
+      .select("job_id, text, sender_id, created_at")
+      .in("job_id", ids)
+      .order("created_at", { ascending: false });
+
+    const lastByThread = {};
+    for (const m of (msgs ?? [])) {
+      if (!lastByThread[m.job_id]) lastByThread[m.job_id] = m;
+    }
+
+    // Unread count: messages from others since last read timestamp
+    const lastRead = localStorage.getItem(`chat_last_read_${userId}`) || new Date(0).toISOString();
+    const { data: unreadMsgs } = await supabase
+      .from("messages")
+      .select("job_id")
+      .in("job_id", ids)
+      .neq("sender_id", userId)
+      .gt("created_at", lastRead);
+
+    const unreadByThread = {};
+    for (const m of (unreadMsgs ?? [])) {
+      unreadByThread[m.job_id] = (unreadByThread[m.job_id] ?? 0) + 1;
+    }
+
+    return threads
+      .map(t => ({
+        ...t,
+        lastMessage: lastByThread[t.id] ?? null,
+        unreadCount: unreadByThread[t.id] ?? 0
+      }))
+      .sort((a, b) => {
+        const at = new Date(a.lastMessage?.created_at ?? a.created_at);
+        const bt = new Date(b.lastMessage?.created_at ?? b.created_at);
+        return bt - at;
+      });
   } catch {
     return [];
   }
