@@ -13,29 +13,31 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check existing session on mount
-    authService
-      .getCurrentUser()
-      .then((currentUser) => {
-        setUser(currentUser);
-      })
-      .catch(() => {
-        setUser(null);
-      })
-      .finally(() => setLoading(false));
+    // Safety net — never stay stuck on spinner longer than 4 seconds
+    const timeout = setTimeout(() => setLoading(false), 4000);
+
+    // getSession() reads from localStorage — instant, no network round-trip
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      clearTimeout(timeout);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    }).catch(() => {
+      clearTimeout(timeout);
+      setUser(null);
+      setLoading(false);
+    });
 
     // Keep state in sync with Supabase auth events (signIn, signOut, tokenRefresh)
     const {
       data: { subscription }
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session?.user) {
-        setUser(null);
-        return;
-      }
-      setUser(await authService.getCurrentUser());
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const value = useMemo(
