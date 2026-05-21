@@ -16,9 +16,6 @@ export async function getComments(postId) {
 }
 
 export async function addComment(postId, authorId, text) {
-  // Ensure the user has a profiles row (required by FK on author_id)
-  await supabase.rpc("ensure_profile").catch(() => {});
-
   const { data, error } = await supabase
     .from("post_comments")
     .insert([{ post_id: postId, author_id: authorId, text }])

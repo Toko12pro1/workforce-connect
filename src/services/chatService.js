@@ -84,18 +84,14 @@ export async function getUnreadMessageCount(userId) {
 export async function getOrCreateDirectThread(myId, theirId) {
   if (!myId || !theirId) return null;
 
-  // Ensure the current user has a profiles row (required by FK)
-  await supabase.rpc("ensure_profile").catch(() => {});
+  // Two simple queries instead of complex OR filter (more reliable)
+  const [{ data: asClient }, { data: asWorker }] = await Promise.all([
+    supabase.from("jobs").select("id").eq("service_type", "Message direct").eq("client_id", myId).eq("worker_id", theirId).limit(1),
+    supabase.from("jobs").select("id").eq("service_type", "Message direct").eq("client_id", theirId).eq("worker_id", myId).limit(1)
+  ]);
 
-  // Check for existing thread (avoid .maybeSingle() to handle duplicates gracefully)
-  const { data: rows } = await supabase
-    .from("jobs")
-    .select("id")
-    .eq("service_type", "Message direct")
-    .or(`and(client_id.eq.${myId},worker_id.eq.${theirId}),and(client_id.eq.${theirId},worker_id.eq.${myId})`)
-    .limit(1);
-
-  if (rows?.[0]?.id) return rows[0].id;
+  const existing = asClient?.[0] ?? asWorker?.[0];
+  if (existing?.id) return existing.id;
 
   // Create new thread
   const { data: newJob, error } = await supabase
@@ -115,7 +111,7 @@ export async function getOrCreateDirectThread(myId, theirId) {
     .single();
 
   if (error) {
-    console.error("getOrCreateDirectThread:", error.message);
+    console.error("getOrCreateDirectThread:", error.message, error.details);
     return null;
   }
   return newJob.id;
