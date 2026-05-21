@@ -305,13 +305,19 @@ export default function ChatPage() {
     withParam ? { id: withParam, name: decodeURIComponent(nameParam || ""), avatar_url: decodeURIComponent(avatarParam || "") } : null
   );
   const [starting, setStarting] = useState(false);
+  const [threadError, setThreadError] = useState("");
 
   // If ?with= is given, find or create thread immediately
   useEffect(() => {
     if (!withParam || !user?.id || jobId) return;
     setStarting(true);
+    setThreadError("");
     getOrCreateDirectThread(user.id, withParam).then(tid => {
-      setJobId(tid);
+      if (tid) {
+        setJobId(tid);
+      } else {
+        setThreadError("Impossible d'ouvrir la conversation. Vérifiez votre connexion et réessayez.");
+      }
       setStarting(false);
     });
   }, [withParam, user?.id]);
@@ -363,7 +369,29 @@ export default function ChatPage() {
           </header>
           {starting
             ? <div className="browse-loading">Démarrage de la conversation…</div>
-            : <ThreadList userId={user.id} onOpen={handleOpen} />
+            : threadError
+              ? (
+                <div style={{ padding: "32px 24px", textAlign: "center", color: "#ef4444" }}>
+                  <p style={{ fontWeight: 600, marginBottom: 12 }}>{threadError}</p>
+                  <button
+                    type="button"
+                    className="wide-blue-button"
+                    style={{ maxWidth: 220, margin: "0 auto" }}
+                    onClick={() => {
+                      setThreadError("");
+                      setStarting(true);
+                      getOrCreateDirectThread(user.id, withParam).then(tid => {
+                        if (tid) setJobId(tid);
+                        else setThreadError("Impossible d'ouvrir la conversation. Vérifiez votre connexion et réessayez.");
+                        setStarting(false);
+                      });
+                    }}
+                  >
+                    Réessayer
+                  </button>
+                </div>
+              )
+              : <ThreadList userId={user.id} onOpen={handleOpen} />
           }
         </>
       )}

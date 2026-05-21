@@ -82,38 +82,43 @@ export async function getUnreadMessageCount(userId) {
 
 // Find an existing direct thread between two users, or create one
 export async function getOrCreateDirectThread(myId, theirId) {
-  try {
-    const { data: existing } = await supabase
-      .from("jobs")
-      .select("id")
-      .eq("service_type", "Message direct")
-      .or(`and(client_id.eq.${myId},worker_id.eq.${theirId}),and(client_id.eq.${theirId},worker_id.eq.${myId})`)
-      .limit(1)
-      .maybeSingle();
+  if (!myId || !theirId) return null;
 
-    if (existing?.id) return existing.id;
+  // Ensure the current user has a profiles row (required by FK)
+  await supabase.rpc("ensure_profile").catch(() => {});
 
-    const { data: newJob, error } = await supabase
-      .from("jobs")
-      .insert({
-        client_id: myId,
-        worker_id: theirId,
-        service_type: "Message direct",
-        description: "Discussion directe",
-        location: "—",
-        budget_type: "fixed",
-        budget_amount: 0,
-        budget_currency: "XAF",
-        status: "active"
-      })
-      .select("id")
-      .single();
+  // Check for existing thread (avoid .maybeSingle() to handle duplicates gracefully)
+  const { data: rows } = await supabase
+    .from("jobs")
+    .select("id")
+    .eq("service_type", "Message direct")
+    .or(`and(client_id.eq.${myId},worker_id.eq.${theirId}),and(client_id.eq.${theirId},worker_id.eq.${myId})`)
+    .limit(1);
 
-    if (error) throw error;
-    return newJob.id;
-  } catch {
+  if (rows?.[0]?.id) return rows[0].id;
+
+  // Create new thread
+  const { data: newJob, error } = await supabase
+    .from("jobs")
+    .insert({
+      client_id: myId,
+      worker_id: theirId,
+      service_type: "Message direct",
+      description: "Discussion directe",
+      location: "—",
+      budget_type: "fixed",
+      budget_amount: 0,
+      budget_currency: "XAF",
+      status: "active"
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("getOrCreateDirectThread:", error.message);
     return null;
   }
+  return newJob.id;
 }
 
 // Get all chat threads for the user, with last message preview and unread count
