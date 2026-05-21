@@ -104,14 +104,14 @@ export async function getOrCreateDirectThread(myId, theirId) {
       location: "—",
       budget_type: "fixed",
       budget_amount: 0,
-      budget_currency: "XAF",
-      status: "active"
+      status: "posted",
+      media_urls: []
     })
     .select("id")
     .single();
 
   if (error) {
-    console.error("getOrCreateDirectThread:", error.message, error.details);
+    console.error("getOrCreateDirectThread:", error.message, error.code, error.hint, error.details);
     return null;
   }
   return newJob.id;
