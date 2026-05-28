@@ -44,6 +44,7 @@ function formatThreadTime(iso) {
 function ThreadList({ userId, onOpen }) {
   const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!userId) return;
@@ -155,30 +156,47 @@ function ThreadList({ userId, onOpen }) {
     );
   }
 
+  const filtered = threads.filter(t => {
+    if (!search.trim()) return true;
+    const other = t.client?.id === userId ? t.worker : t.client;
+    return other?.name?.toLowerCase().includes(search.toLowerCase());
+  });
+
   return (
     <div className="thread-list">
-      {threads.map(t => {
+      <div className="thread-list-search">
+        <input
+          type="search"
+          placeholder="Rechercher une conversation…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </div>
+      {filtered.map(t => {
         const other = t.client?.id === userId ? t.worker : t.client;
         if (!other) return null;
         const lastText = t.lastMessage?.text
           ? (t.lastMessage.sender_id === userId ? `Vous: ${t.lastMessage.text}` : t.lastMessage.text)
-          : (t.service_type === "Message direct" ? "Démarrer la conversation" : t.service_type);
+          : "Démarrer la conversation";
         return (
           <button key={t.id} type="button" className={`thread-row${t.unreadCount > 0 ? " unread" : ""}`} onClick={() => handleOpen(t, other)}>
-            <Avatar url={other.avatar_url} name={other.name} />
+            <Avatar url={other.avatar_url} name={other.name} size={52} />
             <div className="thread-row-body">
               <strong>{other.name}</strong>
               <span className={t.unreadCount > 0 ? "thread-preview-unread" : ""}>{lastText}</span>
             </div>
             <div className="thread-row-meta">
-              <small>{formatThreadTime(t.lastMessage?.created_at ?? t.created_at)}</small>
+              <small style={{ color: t.unreadCount > 0 ? "#25d366" : undefined }}>{formatThreadTime(t.lastMessage?.created_at ?? t.created_at)}</small>
               {t.unreadCount > 0 && (
-                <span className="thread-unread-badge">{t.unreadCount > 9 ? "9+" : t.unreadCount}</span>
+                <span className="thread-unread-badge" style={{ background: "#25d366" }}>{t.unreadCount > 9 ? "9+" : t.unreadCount}</span>
               )}
             </div>
           </button>
         );
       })}
+      {filtered.length === 0 && search && (
+        <p style={{ textAlign: "center", color: "#94a3b8", padding: "32px 16px", fontSize: "0.85rem" }}>Aucun résultat pour "{search}"</p>
+      )}
     </div>
   );
 }
@@ -239,17 +257,17 @@ function Conversation({ jobId, recipient, currentUser, onBack }) {
     <>
       <header className="chat-header">
         <button type="button" onClick={onBack} aria-label="Retour" style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-          <ArrowLeft size={25} />
+          <ArrowLeft size={22} />
         </button>
-        <Avatar url={recipient?.avatar_url} name={recipient?.name} />
+        <Avatar url={recipient?.avatar_url} name={recipient?.name} size={40} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1 style={{ fontSize: "1rem", fontWeight: 700, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {recipient?.name || "Conversation"}
           </h1>
-          <p style={{ fontSize: "0.72rem", color: "#22c55e", margin: 0, fontWeight: 600 }}>En ligne</p>
+          <p style={{ fontSize: "0.72rem", margin: 0 }}>En ligne</p>
         </div>
         {recipient?.phone && (
-          <a href={`tel:${recipient.phone}`} aria-label="Appeler" style={{ color: "#2563eb", padding: 4 }}>
+          <a href={`tel:${recipient.phone}`} aria-label="Appeler" style={{ padding: 8 }}>
             <Phone size={20} />
           </a>
         )}
@@ -257,7 +275,7 @@ function Conversation({ jobId, recipient, currentUser, onBack }) {
 
       <section className="chat-thread" ref={threadRef}>
         {messages.length === 0 && (
-          <p style={{ textAlign: "center", color: "#94a3b8", padding: "32px 16px", fontSize: "0.875rem" }}>
+          <p style={{ textAlign: "center", color: "#667781", background: "rgba(255,255,255,.7)", borderRadius: 12, padding: "10px 20px", fontSize: "0.82rem", justifySelf: "center", marginTop: 16 }}>
             Commencez la conversation 👋
           </p>
         )}
@@ -265,10 +283,10 @@ function Conversation({ jobId, recipient, currentUser, onBack }) {
           const isMe = message.senderId === currentUser?.id;
           return (
             <article className={`message-row ${isMe ? "user-message" : "provider-message"}`} key={message.id}>
-              {!isMe && <Avatar url={recipient?.avatar_url} name={recipient?.name} size={32} />}
+              {!isMe && <Avatar url={recipient?.avatar_url} name={recipient?.name} size={28} />}
               <div className={`bubble ${isMe ? "client" : "worker"}`}>
                 <p>{message.text}</p>
-                <time>{message.time}{isMe && <CheckCheck size={13} style={{ marginLeft: 4, opacity: 0.7 }} />}</time>
+                <time>{message.time}{isMe && <CheckCheck size={12} style={{ marginLeft: 4, opacity: 0.6, color: "#53bdeb" }} />}</time>
               </div>
             </article>
           );
@@ -285,7 +303,7 @@ function Conversation({ jobId, recipient, currentUser, onBack }) {
           autoFocus
         />
         <button type="submit" aria-label="Envoyer" disabled={sending || !draft.trim()}>
-          <Send size={24} />
+          <Send size={22} />
         </button>
       </form>
     </>
@@ -364,7 +382,7 @@ export default function ChatPage() {
       {!jobId && (
         <>
           <header className="chat-header" style={{ justifyContent: "flex-start", gap: 12 }}>
-            <a href="/feed" style={{ color: "#1e293b" }}><ArrowLeft size={25} /></a>
+            <a href="/feed"><ArrowLeft size={22} /></a>
             <h1 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0 }}>Messages</h1>
           </header>
           {starting
