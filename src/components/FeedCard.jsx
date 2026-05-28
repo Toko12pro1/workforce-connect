@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Heart, MessageCircle, Share2, UserPlus, UserCheck, MapPin, Play } from "lucide-react";
+import { Heart, MessageCircle, Share2, UserPlus, UserCheck, MapPin, Play, Volume2, VolumeX } from "lucide-react";
 import { toggleLike } from "../services/likesService.js";
 import { followUser, unfollowUser, isFollowing } from "../services/followService.js";
 
@@ -9,6 +9,12 @@ export default function FeedCard({ post, isActive, currentUserId, likedInitially
   const [likesCount, setLikesCount] = useState(post.likesCount);
   const [following, setFollowing] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [muted, setMuted] = useState(true);
+
+  // Ensure video starts muted (React muted prop is unreliable)
+  React.useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = true;
+  }, []);
 
   // Play/pause video when card becomes active
   React.useEffect(() => {
@@ -21,6 +27,14 @@ export default function FeedCard({ post, isActive, currentUserId, likedInitially
       vid.pause();
     }
   }, [isActive]);
+
+  function toggleMute() {
+    const vid = videoRef.current;
+    if (!vid) return;
+    const next = !muted;
+    vid.muted = next;
+    setMuted(next);
+  }
 
   function togglePause() {
     const vid = videoRef.current;
@@ -67,7 +81,6 @@ export default function FeedCard({ post, isActive, currentUserId, likedInitially
             className="feed-card-media"
             src={media}
             loop
-            muted
             playsInline
             onClick={togglePause}
           />
@@ -121,6 +134,17 @@ export default function FeedCard({ post, isActive, currentUserId, likedInitially
         >
           <Share2 size={24} />
         </button>
+
+        {isVideo && (
+          <button
+            type="button"
+            className="feed-action-btn"
+            aria-label={muted ? "Activer le son" : "Couper le son"}
+            onClick={toggleMute}
+          >
+            {muted ? <VolumeX size={24} /> : <Volume2 size={24} />}
+          </button>
+        )}
 
         {currentUserId && post.workerId !== currentUserId && (
           <button
