@@ -46,8 +46,10 @@ export default function CreateFeedPostPage() {
       }, files);
 
       window.location.href = "/feed";
-    } catch {
-      setError("Impossible de publier maintenant. Verifiez Supabase puis reessayez.");
+    } catch (err) {
+      const msg = err?.message || err?.error_description || String(err);
+      setError(`Erreur: ${msg}`);
+      console.error("publish error:", err);
       setSubmitting(false);
     }
   }
