@@ -316,7 +316,8 @@ export default function ChatPage() {
       if (tid) setJobId(tid);
       setStarting(false);
     }).catch(err => {
-      setThreadError(`Erreur: ${err.message} (user:${user.id?.slice(0,8)} with:${withParam?.slice(0,8)})`);
+      setThreadError("Impossible d'ouvrir la conversation. Vérifiez votre connexion et réessayez.");
+      console.error("Thread error:", err.message);
       setStarting(false);
     });
   }, [withParam, user?.id]);
